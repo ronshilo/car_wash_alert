@@ -9,6 +9,8 @@ from string import Template
 import smtplib
 import yaml
 import ssl
+import datetime
+
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 SPREADSHEET_ID_KEY = 'spreadsheet_id'
@@ -20,10 +22,18 @@ def get_config(path_to_file: str) -> dict:
         return yaml.load(fid)
 
 
+def time_in_range(start, end, x):
+    """Return true if x is in the range [start, end]"""
+    if start <= end:
+        return start <= x <= end
+    else:
+        return start <= x or x <= end
+
 def main():
 
     config_dict = get_config('run_car_alert_config.yaml')
-
+    start_time = datetime.time(6, 0, 0)
+    end_time = datetime.time(23, 0, 0)
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
@@ -49,15 +59,21 @@ def main():
     old_values = []
     sheet = service.spreadsheets()
     while True:
-        result = sheet.values().get(spreadsheetId=config_dict.get(SPREADSHEET_ID_KEY),
-                                    range=config_dict.get(RANGE_NAME_KEY)).execute()
+        now_time = datetime.datetime.now().time()
+        if time_in_range(start=start_time, end=end_time, x=now_time):
+            result = sheet.values().get(spreadsheetId=config_dict.get(SPREADSHEET_ID_KEY),
+                                        range=config_dict.get(RANGE_NAME_KEY)).execute()
 
-        values = result.get('values', [])
-        if not values:
-            print('No data found.')
+            values = result.get('values', [])
+            if not values:
+                print('No data found.')
+            else:
+               old_values = my_bl(values=values, old_values=old_values, config_dict=config_dict)
+            print('{} - in time range'.format(now_time))
         else:
-           old_values = my_bl(values=values, old_values=old_values, config_dict=config_dict)
-        time.sleep(30)
+            print('{} - out of time range'.format(now_time))
+        time.sleep(60)
+
 
 
 def my_bl(values: list, old_values:list, config_dict: dict) -> list:
